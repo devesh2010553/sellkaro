@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Verify Your Email | SellKaro</title>
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600&family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<header class="site-header"><div id="site-header"></div></header>
+
+<section style="padding:80px 0;">
+  <div class="container text-center" style="max-width:480px;">
+    <h1>Verify your email</h1>
+    <p class="text-muted">We've sent a verification link to your inbox. Click it, then come back here and press the button below.</p>
+    <div class="mt-32 flex" style="flex-direction:column; gap:12px;">
+      <button class="btn btn-primary btn-block" id="check-btn">I've verified my email</button>
+      <button class="btn btn-ghost btn-block" id="resend-btn">Resend verification email</button>
+    </div>
+  </div>
+</section>
+
+<footer class="site-footer"><div id="site-footer"></div></footer>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="/js/firebase-config.js"></script>
+<script src="/js/app.js"></script>
+<script>
+  renderHeader('');
+
+  document.getElementById('check-btn').addEventListener('click', async () => {
+    const user = firebase.auth().currentUser;
+    if (!user) {
+      showToast('Please log in first.', 'error');
+      setTimeout(() => window.location.href = '/login.html', 1000);
+      return;
+    }
+    await user.reload();
+    // Force a fresh ID token so the email_verified claim is up to date
+    await user.getIdToken(true);
+    if (user.emailVerified) {
+      showToast('Email verified! Redirecting...', 'success');
+      setTimeout(() => window.location.href = '/dashboard.html', 1000);
+    } else {
+      showToast('Still not verified. Please click the link in your email first.', 'error');
+    }
+  });
+
+  document.getElementById('resend-btn').addEventListener('click', async () => {
+    const user = firebase.auth().currentUser;
+    if (!user) {
+      showToast('Please log in first.', 'error');
+      return;
+    }
+    try {
+      await user.sendEmailVerification();
+      showToast('Verification email resent.', 'success');
+    } catch (e) {
+      showToast('Could not resend right now. Please wait a moment and try again.', 'error');
+    }
+  });
+</script>
+</body>
+</html>

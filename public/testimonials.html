@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Testimonials - What Sellers Say | SellKaro</title>
+<meta name="description" content="Read real testimonials from people who sold their car or other items on SellKaro, and share your own experience.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600&family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<header class="site-header"><div id="site-header"></div></header>
+
+<section class="page-header">
+  <div class="container">
+    <h1>What sellers say</h1>
+    <p>Real testimonials from people who've sold on SellKaro.</p>
+  </div>
+</section>
+
+<section>
+  <div class="container">
+    <div id="testimonials-list" class="ads-grid"><div class="spinner"></div></div>
+  </div>
+</section>
+
+<section style="background:var(--paper-dim);">
+  <div class="container" style="max-width:560px;">
+    <div class="section-head">
+      <span class="eyebrow">Sold something on SellKaro?</span>
+      <h2>Share your experience</h2>
+    </div>
+    <div id="cta-card"></div>
+  </div>
+</section>
+
+<footer class="site-footer"><div id="site-footer"></div></footer>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="/js/firebase-config.js"></script>
+<script src="/js/app.js"></script>
+<script>
+  renderHeader('testimonials');
+
+  async function loadTestimonials() {
+    const el = document.getElementById('testimonials-list');
+    try {
+      const data = await apiCall('/testimonials');
+      if (!data.testimonials.length) {
+        el.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="icon">⭐</div><p>No testimonials yet. Be the first to share yours!</p></div>`;
+        return;
+      }
+      el.innerHTML = data.testimonials.map(t => `
+        <div class="testimonial-card">
+          <div class="stars">${'★'.repeat(t.rating)}${'☆'.repeat(5 - t.rating)}</div>
+          <div class="quote">"${escapeHtml(t.message)}"</div>
+          <div class="who">${escapeHtml(t.name)}</div>
+        </div>
+      `).join('');
+    } catch (e) {
+      el.innerHTML = `<p class="text-muted">Could not load testimonials.</p>`;
+    }
+  }
+
+  document.addEventListener('authready', (e) => {
+    const card = document.getElementById('cta-card');
+    if (e.detail.firebaseUser) {
+      card.innerHTML = `<a href="/dashboard.html" class="btn btn-primary">Go to my dashboard to submit a review</a>`;
+    } else {
+      card.innerHTML = `<a href="/login.html?redirect=/dashboard.html" class="btn btn-primary">Log in to share your experience</a>`;
+    }
+  });
+
+  loadTestimonials();
+</script>
+</body>
+</html>

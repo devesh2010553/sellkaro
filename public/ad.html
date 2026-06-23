@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title id="page-title">Listing | SellKaro</title>
+<meta name="description" id="page-desc" content="View this listing on SellKaro.">
+<meta name="robots" content="index, follow">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600&family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/css/style.css">
+<style>
+  .gallery-main { aspect-ratio: 4/3; background: var(--paper-dim); border-radius: var(--radius); overflow: hidden; display:flex; align-items:center; justify-content:center; color:#9aa3af; }
+  .gallery-main img { width:100%; height:100%; object-fit:cover; }
+  .gallery-thumbs { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+  .gallery-thumbs img { width:64px; height:64px; object-fit:cover; border-radius:6px; cursor:pointer; border:2px solid transparent; }
+  .gallery-thumbs img.active { border-color: var(--amber-500); }
+  .spec-table { width:100%; border-collapse: collapse; font-size:0.9rem; }
+  .spec-table td { padding:8px 0; border-bottom:1px solid var(--line); }
+  .spec-table td:first-child { color:#6b7585; width:40%; }
+</style>
+</head>
+<body>
+<header class="site-header"><div id="site-header"></div></header>
+
+<section style="padding:32px 0;">
+  <div class="container" id="ad-detail">
+    <div class="spinner"></div>
+  </div>
+</section>
+
+<div class="modal-overlay" id="inquiry-modal">
+  <div class="modal-box">
+    <button class="modal-close" id="inquiry-close">&times;</button>
+    <h3>Send a message about this listing</h3>
+    <p class="text-sm text-muted">Your message goes to our team first. We'll review it and connect you with the seller.</p>
+    <form id="inquiry-form" class="mt-16">
+      <div class="field-group">
+        <label class="field-label">Your message</label>
+        <textarea id="inquiry-text" required placeholder="e.g. Is this still available? Can we negotiate the price?"></textarea>
+      </div>
+      <button type="submit" class="btn btn-primary btn-block" id="inquiry-submit">Send message</button>
+    </form>
+  </div>
+</div>
+
+<footer class="site-footer"><div id="site-footer"></div></footer>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="/js/firebase-config.js"></script>
+<script src="/js/app.js"></script>
+<script>
+  renderHeader('browse');
+
+  const slug = new URLSearchParams(window.location.search).get('slug');
+  let loadedAd = null;
+
+  function carSpecRows(ad) {
+    if (ad.category !== 'Cars' || !ad.carDetails) return '';
+    const d = ad.carDetails;
+    const rows = [
+      ['Brand', d.brand], ['Model', d.model], ['Year', d.year],
+      ['Fuel type', d.fuelType], ['Transmission', d.transmission],
+      ['KM driven', d.kmDriven ? Number(d.kmDriven).toLocaleString('en-IN') + ' km' : null],
+      ['Owners', d.owners]
+    ].filter(([_, v]) => v);
+    if (!rows.length) return '';
+    return `<table class="spec-table">${rows.map(([k,v]) => `<tr><td>${k}</td><td><strong>${escapeHtml(String(v))}</strong></td></tr>`).join('')}</table>`;
+  }
+
+  async function loadAd() {
+    const el = document.getElementById('ad-detail');
+    if (!slug) {
+      el.innerHTML = `<div class="empty-state"><p>No listing specified.</p></div>`;
+      return;
+    }
+    try {
+      const data = await apiCall('/ads/' + encodeURIComponent(slug));
+      loadedAd = data.ad;
+      const ad = data.ad;
+
+      document.getElementById('page-title').textContent = `${ad.title} - ${formatPrice(ad.price)} | SellKaro`;
+      document.getElementById('page-desc').setAttribute('content', ad.description.slice(0, 155));
+
+      const images = ad.images && ad.images.length ? ad.images : [{ url: '' }];
+      const galleryMain = images[0].url ? `<img id="main-img" src="${images[0].url}" alt="${escapeHtml(ad.title)}">` : 'No photo available';
+      const thumbs = images.length > 1 ? `<div class="gallery-thumbs">${images.map((img, i) => `<img src="${img.url}" class="${i===0?'active':''}" data-src="${img.url}">`).join('')}</div>` : '';
+
+      el.innerHTML = `
+        <div style="display:grid; grid-template-columns: 1.2fr 0.8fr; gap:36px;">
+          <div>
+            <div class="gallery-main">${galleryMain}</div>
+            ${thumbs}
+            <div class="mt-32">
+              <h3 style="font-size:1.1rem;">Description</h3>
+              <p style="white-space:pre-wrap;">${escapeHtml(ad.description)}</p>
+            </div>
+            ${carSpecRows(ad) ? `<div class="mt-24"><h3 style="font-size:1.1rem;">Specifications</h3>${carSpecRows(ad)}</div>` : ''}
+          </div>
+          <div>
+            <div class="card" style="padding:24px;">
+              <span class="badge badge-gray mb-8" style="display:inline-block;">${escapeHtml(ad.category)}</span>
+              <h1 style="font-size:1.5rem;">${escapeHtml(ad.title)}</h1>
+              <div class="price" style="font-size:1.8rem; margin:8px 0;">${formatPrice(ad.price)}</div>
+              <p class="text-sm text-muted">${escapeHtml(ad.location && ad.location.city || '')}${ad.location && ad.location.state ? ', ' + escapeHtml(ad.location.state) : ''}</p>
+              <p class="text-sm text-muted">Posted ${timeAgo(ad.createdAt)} &middot; ${ad.views} views</p>
+              <button class="btn btn-primary btn-block mt-16" id="contact-seller-btn">Message about this listing</button>
+              <p class="text-sm text-muted mt-8">Posted by ${escapeHtml(ad.seller && ad.seller.name || 'a seller')}. Messages are handled by our team for your safety.</p>
+            </div>
+            <div class="commission-note mt-16">
+              A 5% commission applies to the final sale price if this item sells through SellKaro. <a href="/terms.html" style="text-decoration:underline;">See terms</a>.
+            </div>
+          </div>
+        </div>
+      `;
+
+      document.querySelectorAll('.gallery-thumbs img').forEach(t => {
+        t.addEventListener('click', () => {
+          document.getElementById('main-img').src = t.dataset.src;
+          document.querySelectorAll('.gallery-thumbs img').forEach(x => x.classList.remove('active'));
+          t.classList.add('active');
+        });
+      });
+
+      document.getElementById('contact-seller-btn').addEventListener('click', () => {
+        if (!firebase.auth().currentUser) {
+          showToast('Please log in to send a message.', 'error');
+          setTimeout(() => window.location.href = '/login.html?redirect=' + encodeURIComponent(window.location.pathname + window.location.search), 900);
+          return;
+        }
+        document.getElementById('inquiry-modal').classList.add('open');
+      });
+    } catch (e) {
+      el.innerHTML = `<div class="empty-state"><div class="icon">🚫</div><p>${escapeHtml(e.message)}</p></div>`;
+    }
+  }
+
+  document.getElementById('inquiry-close').addEventListener('click', () => document.getElementById('inquiry-modal').classList.remove('open'));
+
+  document.getElementById('inquiry-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('inquiry-submit');
+    const text = document.getElementById('inquiry-text').value.trim();
+    if (!text) return;
+    btn.disabled = true;
+    btn.textContent = 'Sending...';
+    try {
+      const data = await apiCall('/inquiries', { method: 'POST', auth: true, body: { adId: loadedAd._id, message: text } });
+      showToast(data.message || 'Message sent!', 'success');
+      document.getElementById('inquiry-modal').classList.remove('open');
+      document.getElementById('inquiry-text').value = '';
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Send message';
+    }
+  });
+
+  loadAd();
+</script>
+</body>
+</html>

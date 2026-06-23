@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Dashboard | SellKaro</title>
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600&family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/css/style.css">
+<style>
+  .tabs { display:flex; gap:8px; border-bottom:2px solid var(--line); margin-bottom:24px; flex-wrap:wrap; }
+  .tab-btn { padding:10px 18px; font-weight:600; font-size:0.9rem; color:#6b7585; border-bottom:2px solid transparent; margin-bottom:-2px; background:none; border-top:none; border-left:none; border-right:none; }
+  .tab-btn.active { color: var(--ink-900); border-bottom-color: var(--amber-500); }
+  .tab-panel { display:none; }
+  .tab-panel.active { display:block; }
+  .my-ad-row { display:flex; gap:16px; padding:16px; border:1px solid var(--line); border-radius:10px; margin-bottom:12px; align-items:center; }
+  .my-ad-row .thumb { width:80px; height:60px; border-radius:6px; background:var(--paper-dim); overflow:hidden; flex-shrink:0; }
+  .my-ad-row .thumb img { width:100%; height:100%; object-fit:cover; }
+  .inquiry-block { border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:16px; }
+</style>
+</head>
+<body>
+<header class="site-header"><div id="site-header"></div></header>
+
+<section class="page-header">
+  <div class="container">
+    <h1>My dashboard</h1>
+    <p>Manage your listings, messages, and reviews.</p>
+  </div>
+</section>
+
+<section id="gate" style="display:none;">
+  <div class="container text-center" style="max-width:480px;">
+    <div class="card" style="padding:32px;">
+      <h3>Please log in</h3>
+      <p class="text-muted text-sm">Log in to view your dashboard.</p>
+      <a href="/login.html?redirect=/dashboard.html" class="btn btn-primary mt-16">Log in</a>
+    </div>
+  </div>
+</section>
+
+<section id="dash" style="display:none;">
+  <div class="container">
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="ads">My ads</button>
+      <button class="tab-btn" data-tab="sent">Messages I sent</button>
+      <button class="tab-btn" data-tab="received">Messages on my ads</button>
+      <button class="tab-btn" data-tab="testimonial">Share your experience</button>
+    </div>
+
+    <div class="tab-panel active" id="tab-ads"><div class="spinner"></div></div>
+    <div class="tab-panel" id="tab-sent"><div class="spinner"></div></div>
+    <div class="tab-panel" id="tab-received"><div class="spinner"></div></div>
+    <div class="tab-panel" id="tab-testimonial">
+      <div class="card" style="padding:24px; max-width:560px;">
+        <h3>Share your experience</h3>
+        <p class="text-sm text-muted">Your review will be shown publicly once approved by our team.</p>
+        <form id="testimonial-form" class="mt-16">
+          <div class="field-group">
+            <label class="field-label">Your rating</label>
+            <select id="t-rating" required>
+              <option value="5">★★★★★ Excellent</option>
+              <option value="4">★★★★☆ Good</option>
+              <option value="3">★★★☆☆ Average</option>
+              <option value="2">★★☆☆☆ Poor</option>
+              <option value="1">★☆☆☆☆ Very poor</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label class="field-label">Your review</label>
+            <textarea id="t-message" required maxlength="1000" placeholder="Tell other sellers about your experience..."></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary" id="t-submit">Submit for review</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="site-footer"><div id="site-footer"></div></footer>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="/js/firebase-config.js"></script>
+<script src="/js/app.js"></script>
+<script>
+  renderHeader('dashboard');
+
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  const statusBadge = (status) => {
+    const map = { pending: 'badge-amber', approved: 'badge-green', rejected: 'badge-red', sold: 'badge-gray', removed: 'badge-gray' };
+    return `<span class="badge ${map[status] || 'badge-gray'}">${status}</span>`;
+  };
+
+  async function loadMyAds() {
+    const el = document.getElementById('tab-ads');
+    try {
+      const data = await apiCall('/ads/mine/all', { auth: true });
+      if (!data.ads.length) {
+        el.innerHTML = `<div class="empty-state"><div class="icon">📭</div><p>You haven't posted any ads yet.</p><a href="/sell.html" class="btn btn-primary mt-16">Post your first ad</a></div>`;
+        return;
+      }
+      el.innerHTML = data.ads.map(ad => `
+        <div class="my-ad-row">
+          <div class="thumb">${ad.images && ad.images[0] ? `<img src="${ad.images[0].url}">` : ''}</div>
+          <div style="flex:1;">
+            <div class="flex gap-12" style="align-items:center;">
+              <strong>${escapeHtml(ad.title)}</strong> ${statusBadge(ad.status)}
+            </div>
+            <div class="text-sm text-muted">${formatPrice(ad.price)} &middot; ${timeAgo(ad.createdAt)}</div>
+            ${ad.status === 'rejected' && ad.rejectionReason ? `<div class="text-sm" style="color:var(--red-stop);">Reason: ${escapeHtml(ad.rejectionReason)}</div>` : ''}
+          </div>
+          <div class="flex gap-8">
+            ${ad.status === 'approved' ? `<button class="btn btn-sm btn-ghost mark-sold" data-id="${ad._id}">Mark sold</button>` : ''}
+            ${ad.status === 'pending' || ad.status === 'rejected' ? `<button class="btn btn-sm btn-danger delete-ad" data-id="${ad._id}">Delete</button>` : ''}
+          </div>
+        </div>
+      `).join('');
+
+      el.querySelectorAll('.mark-sold').forEach(b => b.addEventListener('click', async () => {
+        if (!confirm('Mark this as sold? Remember the 5% commission applies once a sale completes.')) return;
+        try {
+          const data = await apiCall(`/ads/${b.dataset.id}/mark-sold`, { method: 'PATCH', auth: true });
+          showToast(data.message, 'success');
+          loadMyAds();
+        } catch (e) { showToast(e.message, 'error'); }
+      }));
+      el.querySelectorAll('.delete-ad').forEach(b => b.addEventListener('click', async () => {
+        if (!confirm('Delete this ad permanently?')) return;
+        try {
+          await apiCall(`/ads/${b.dataset.id}`, { method: 'DELETE', auth: true });
+          showToast('Ad deleted.', 'success');
+          loadMyAds();
+        } catch (e) { showToast(e.message, 'error'); }
+      }));
+    } catch (e) {
+      el.innerHTML = `<p class="text-muted">${escapeHtml(e.message)}</p>`;
+    }
+  }
+
+  function threadHtml(thread, meLabel) {
+    if (!thread.length) return `<p class="text-sm text-muted">No replies yet. Our team will respond here soon.</p>`;
+    return thread.map(m => `
+      <div class="thread-msg ${m.sender === 'admin' ? 'from-admin' : 'from-me'}">
+        ${escapeHtml(m.text)}
+        <div class="meta">${m.sender === 'admin' ? 'SellKaro team' : meLabel} &middot; ${timeAgo(m.createdAt)}</div>
+      </div>
+    `).join('');
+  }
+
+  async function loadSent() {
+    const el = document.getElementById('tab-sent');
+    try {
+      const data = await apiCall('/inquiries/mine/sent', { auth: true });
+      if (!data.inquiries.length) {
+        el.innerHTML = `<div class="empty-state"><div class="icon">💬</div><p>You haven't sent any messages yet.</p></div>`;
+        return;
+      }
+      el.innerHTML = data.inquiries.map(inq => `
+        <div class="inquiry-block">
+          <div class="flex-between">
+            <strong>${inq.ad ? escapeHtml(inq.ad.title) : 'Listing removed'}</strong>
+            <span class="badge badge-gray">${inq.status.replace('_',' ')}</span>
+          </div>
+          <p class="text-sm mt-8"><em>You wrote:</em> ${escapeHtml(inq.initialMessage)}</p>
+          <div class="mt-16">${threadHtml(inq.thread, 'You')}</div>
+          <form class="reply-form mt-16 flex gap-8" data-id="${inq._id}">
+            <input type="text" placeholder="Write a reply..." required>
+            <button class="btn btn-sm btn-dark" type="submit">Send</button>
+          </form>
+        </div>
+      `).join('');
+
+      el.querySelectorAll('.reply-form').forEach(f => f.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const input = f.querySelector('input');
+        try {
+          await apiCall(`/inquiries/${f.dataset.id}/buyer-reply`, { method: 'POST', auth: true, body: { text: input.value } });
+          showToast('Reply sent.', 'success');
+          loadSent();
+        } catch (err) { showToast(err.message, 'error'); }
+      }));
+    } catch (e) {
+      el.innerHTML = `<p class="text-muted">${escapeHtml(e.message)}</p>`;
+    }
+  }
+
+  async function loadReceived() {
+    const el = document.getElementById('tab-received');
+    try {
+      const data = await apiCall('/inquiries/mine/received', { auth: true });
+      if (!data.inquiries.length) {
+        el.innerHTML = `<div class="empty-state"><div class="icon">📨</div><p>No one has messaged about your ads yet.</p></div>`;
+        return;
+      }
+      el.innerHTML = data.inquiries.map(inq => `
+        <div class="inquiry-block">
+          <div class="flex-between">
+            <strong>${inq.ad ? escapeHtml(inq.ad.title) : 'Listing removed'}</strong>
+            <span class="badge badge-gray">${inq.status.replace('_',' ')}</span>
+          </div>
+          <p class="text-sm text-muted mt-8">Someone is interested in this listing. Our team will relay relevant details here.</p>
+          <div class="mt-16">${threadHtml(inq.thread, 'You')}</div>
+          <form class="seller-reply-form mt-16 flex gap-8" data-id="${inq._id}">
+            <input type="text" placeholder="Write a reply to our team..." required>
+            <button class="btn btn-sm btn-dark" type="submit">Send</button>
+          </form>
+        </div>
+      `).join('');
+
+      el.querySelectorAll('.seller-reply-form').forEach(f => f.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const input = f.querySelector('input');
+        try {
+          await apiCall(`/inquiries/${f.dataset.id}/seller-reply`, { method: 'POST', auth: true, body: { text: input.value } });
+          showToast('Reply sent.', 'success');
+          loadReceived();
+        } catch (err) { showToast(err.message, 'error'); }
+      }));
+    } catch (e) {
+      el.innerHTML = `<p class="text-muted">${escapeHtml(e.message)}</p>`;
+    }
+  }
+
+  document.getElementById('testimonial-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('t-submit');
+    btn.disabled = true;
+    try {
+      const data = await apiCall('/testimonials', {
+        method: 'POST', auth: true,
+        body: { rating: document.getElementById('t-rating').value, message: document.getElementById('t-message').value.trim() }
+      });
+      showToast(data.message, 'success');
+      document.getElementById('testimonial-form').reset();
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  document.addEventListener('authready', (e) => {
+    if (!e.detail.firebaseUser) {
+      document.getElementById('gate').style.display = 'block';
+      return;
+    }
+    document.getElementById('dash').style.display = 'block';
+    loadMyAds();
+    loadSent();
+    loadReceived();
+  });
+</script>
+</body>
+</html>

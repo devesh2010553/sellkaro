@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign Up Free | SellKaro</title>
+<meta name="description" content="Create your free SellKaro account to start posting ads to sell your car or anything else.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600&family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<header class="site-header"><div id="site-header"></div></header>
+
+<section class="page-header">
+  <div class="container">
+    <h1>Create your account</h1>
+    <p>Free to join. You'll need to verify your email before you can post an ad.</p>
+  </div>
+</section>
+
+<section>
+  <div class="container" style="max-width:480px;">
+    <form id="signup-form" class="card" style="padding:28px;">
+      <div class="field-group">
+        <label class="field-label">Full name</label>
+        <input type="text" id="su-name" required placeholder="Your full name">
+      </div>
+      <div class="field-group">
+        <label class="field-label">Email address</label>
+        <input type="email" id="su-email" required placeholder="you@example.com">
+      </div>
+      <div class="field-group">
+        <label class="field-label">Phone number</label>
+        <input type="tel" id="su-phone" required placeholder="10-digit mobile number">
+        <div class="hint">Used by our team to reach you about your ads &mdash; never shown publicly.</div>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Password</label>
+        <input type="password" id="su-password" required placeholder="At least 6 characters" minlength="6">
+      </div>
+      <button type="submit" class="btn btn-primary btn-block" id="signup-btn">Create account</button>
+      <p class="text-sm text-center mt-16">Already have an account? <a href="/login.html" style="color:var(--amber-600); font-weight:600;">Log in</a></p>
+    </form>
+  </div>
+</section>
+
+<footer class="site-footer"><div id="site-footer"></div></footer>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="/js/firebase-config.js"></script>
+<script src="/js/app.js"></script>
+<script>
+  renderHeader('');
+
+  document.getElementById('signup-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('signup-btn');
+    const name = document.getElementById('su-name').value.trim();
+    const email = document.getElementById('su-email').value.trim();
+    const phone = document.getElementById('su-phone').value.trim();
+    const password = document.getElementById('su-password').value;
+
+    if (phone.replace(/\D/g,'').length < 10) {
+      showToast('Please enter a valid phone number.', 'error');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Creating account...';
+
+    try {
+      const cred = await firebase.auth().createUserWithEmailAndPassword(email, password);
+      await cred.user.sendEmailVerification();
+
+      await apiCall('/auth/sync', { method: 'POST', auth: true, body: { name, phone } });
+
+      showToast('Account created! Please check your email to verify your address.', 'success');
+      setTimeout(() => window.location.href = '/verify-email.html', 1200);
+    } catch (err) {
+      console.error(err);
+      let msg = err.message || 'Could not create account.';
+      if (msg.includes('email-already-in-use')) msg = 'An account with this email already exists. Try logging in instead.';
+      if (msg.includes('weak-password')) msg = 'Password should be at least 6 characters.';
+      if (msg.includes('invalid-email')) msg = 'Please enter a valid email address.';
+      showToast(msg, 'error');
+      btn.disabled = false;
+      btn.textContent = 'Create account';
+    }
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Panel | SellKaro</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600&family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/css/style.css">
+<style>
+  body { background: var(--paper-dim); }
+  .admin-shell { display:flex; min-height:100vh; }
+  .admin-sidebar { width:220px; background:var(--ink-900); color:#fff; padding:24px 16px; flex-shrink:0; }
+  .admin-sidebar a, .admin-sidebar button { display:block; width:100%; text-align:left; padding:10px 12px; border-radius:8px; color:var(--paper-dim); margin-bottom:4px; background:none; border:none; font-size:0.9rem; font-weight:500; }
+  .admin-sidebar a.active, .admin-sidebar button.active { background: var(--ink-700); color:#fff; }
+  .admin-sidebar .brand { color:#fff; font-family:var(--font-display); font-size:1.3rem; margin-bottom:24px; display:block; }
+  .admin-main { flex:1; padding:32px; max-width:1100px; }
+  .stat-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap:16px; margin-bottom:32px; }
+  .stat-card { background:#fff; border-radius:10px; padding:18px; border:1px solid var(--line); }
+  .stat-card .num { font-family:var(--font-display); font-size:1.8rem; font-weight:600; }
+  .stat-card .label { font-size:0.78rem; color:#6b7585; text-transform:uppercase; letter-spacing:0.04em; }
+  .admin-panel-list { display:none; }
+  .admin-panel-list.active { display:block; }
+  .review-row { background:#fff; border:1px solid var(--line); border-radius:10px; padding:18px; margin-bottom:14px; }
+  .review-row .thumb { width:90px; height:65px; border-radius:6px; background:var(--paper-dim); overflow:hidden; float:left; margin-right:16px; }
+  .review-row .thumb img { width:100%; height:100%; object-fit:cover; }
+</style>
+</head>
+<body>
+
+<div id="login-gate" style="display:none; min-height:100vh; align-items:center; justify-content:center; flex-direction:column;" class="flex">
+  <div class="card" style="padding:32px; max-width:400px; width:100%;">
+    <h3>Admin access</h3>
+    <p class="text-sm text-muted" id="gate-msg">Please log in with an authorized admin account.</p>
+    <a href="/login.html" class="btn btn-primary btn-block mt-16">Log in</a>
+  </div>
+</div>
+
+<div class="admin-shell" id="admin-shell" style="display:none;">
+  <div class="admin-sidebar">
+    <span class="brand">SellKaro Admin</span>
+    <button class="nav-item active" data-panel="dashboard">Dashboard</button>
+    <button class="nav-item" data-panel="ads">Ad approvals</button>
+    <button class="nav-item" data-panel="inquiries">Inquiries</button>
+    <button class="nav-item" data-panel="testimonials">Testimonials</button>
+    <button class="nav-item" data-panel="feedback">Feedback</button>
+    <button class="nav-item" data-panel="users">Users</button>
+    <a href="/index.html" style="margin-top:24px; border-top:1px solid rgba(255,255,255,0.15); padding-top:16px;">&larr; Back to site</a>
+  </div>
+  <div class="admin-main">
+
+    <div class="admin-panel-list active" id="panel-dashboard">
+      <h2>Dashboard</h2>
+      <div class="stat-grid" id="stats-grid"><div class="spinner"></div></div>
+    </div>
+
+    <div class="admin-panel-list" id="panel-ads">
+      <div class="flex-between mb-16">
+        <h2>Ad approvals</h2>
+        <select id="ads-status-filter">
+          <option value="pending">Pending</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+          <option value="sold">Sold</option>
+          <option value="removed">Removed</option>
+        </select>
+      </div>
+      <div id="ads-list"><div class="spinner"></div></div>
+    </div>
+
+    <div class="admin-panel-list" id="panel-inquiries">
+      <h2>Inquiries</h2>
+      <p class="text-sm text-muted mb-16">All buyer-seller messages route through here. Relay information between parties as needed.</p>
+      <div id="inquiries-list"><div class="spinner"></div></div>
+    </div>
+
+    <div class="admin-panel-list" id="panel-testimonials">
+      <div class="flex-between mb-16">
+        <h2>Testimonials</h2>
+        <select id="testimonial-status-filter">
+          <option value="pending">Pending</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+        </select>
+      </div>
+      <div id="testimonials-list-admin"><div class="spinner"></div></div>
+    </div>
+
+    <div class="admin-panel-list" id="panel-feedback">
+      <h2>Feedback</h2>
+      <div id="feedback-list-admin"><div class="spinner"></div></div>
+    </div>
+
+    <div class="admin-panel-list" id="panel-users">
+      <h2>Users</h2>
+      <div id="users-list-admin"><div class="spinner"></div></div>
+    </div>
+
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="/js/firebase-config.js"></script>
+<script src="/js/app.js"></script>
+<script>
+  // Sidebar nav
+  document.querySelectorAll('.nav-item').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.admin-panel-list').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('panel-' + btn.dataset.panel).classList.add('active');
+      loadPanel(btn.dataset.panel);
+    });
+  });
+
+  function statusBadge(status) {
+    const map = { pending: 'badge-amber', approved: 'badge-green', rejected: 'badge-red', sold: 'badge-gray', removed: 'badge-gray', new: 'badge-amber', in_progress: 'badge-green', closed: 'badge-gray' };
+    return `<span class="badge ${map[status] || 'badge-gray'}">${status.replace('_',' ')}</span>`;
+  }
+
+  async function loadStats() {
+    const el = document.getElementById('stats-grid');
+    try {
+      const s = await apiCall('/admin/stats', { auth: true });
+      el.innerHTML = `
+        <div class="stat-card"><div class="num">${s.pendingAds}</div><div class="label">Pending ads</div></div>
+        <div class="stat-card"><div class="num">${s.approvedAds}</div><div class="label">Live ads</div></div>
+        <div class="stat-card"><div class="num">${s.newInquiries}</div><div class="label">New inquiries</div></div>
+        <div class="stat-card"><div class="num">${s.pendingTestimonials}</div><div class="label">Pending reviews</div></div>
+        <div class="stat-card"><div class="num">${s.unreadFeedback}</div><div class="label">Unread feedback</div></div>
+        <div class="stat-card"><div class="num">${s.totalUsers}</div><div class="label">Total users</div></div>
+      `;
+    } catch (e) { el.innerHTML = `<p class="text-muted">${escapeHtml(e.message)}</p>`; }
+  }
+
+  async function loadAdsPanel() {
+    const el = document.getElementById('ads-list');
+    const status = document.getElementById('ads-status-filter').value;
+    el.innerHTML = '<div class="spinner"></div>';
+    try {
+      const data = await apiCall('/admin/ads?status=' + status, { auth: true });
+      if (!data.ads.length) { el.innerHTML = `<p class="text-muted">No ${status} ads.</p>`; return; }
+      el.innerHTML = data.ads.map(ad => `
+        <div class="review-row">
+          <div class="thumb">${ad.images && ad.images[0] ? `<img src="${ad.images[0].url}">` : ''}</div>
+          <div class="flex-between">
+            <div>
+              <strong>${escapeHtml(ad.title)}</strong> ${statusBadge(ad.status)}
+              <div class="text-sm text-muted">${formatPrice(ad.price)} &middot; ${escapeHtml(ad.category)} &middot; ${escapeHtml(ad.location && ad.location.city || '')}</div>
+              <div class="text-sm text-muted">Seller: ${escapeHtml(ad.seller && ad.seller.name || '')} (${escapeHtml(ad.seller && ad.seller.email || '')}, ${escapeHtml(ad.seller && ad.seller.phone || '')})</div>
+            </div>
+            <div class="flex gap-8">
+              ${ad.status === 'pending' ? `
+                <button class="btn btn-sm btn-primary approve-ad" data-id="${ad._id}">Approve</button>
+                <button class="btn btn-sm btn-danger reject-ad" data-id="${ad._id}">Reject</button>
+              ` : ''}
+              ${ad.status === 'approved' ? `<button class="btn btn-sm btn-danger remove-ad" data-id="${ad._id}">Remove</button>` : ''}
+            </div>
+          </div>
+          <div style="clear:both;"></div>
+        </div>
+      `).join('');
+
+      el.querySelectorAll('.approve-ad').forEach(b => b.addEventListener('click', async () => {
+        try { const d = await apiCall(`/admin/ads/${b.dataset.id}/approve`, { method:'PATCH', auth:true }); showToast(d.message,'success'); loadAdsPanel(); }
+        catch(e){ showToast(e.message,'error'); }
+      }));
+      el.querySelectorAll('.reject-ad').forEach(b => b.addEventListener('click', async () => {
+        const reason = prompt('Reason for rejection (shown to seller):', 'Did not meet listing guidelines.');
+        if (reason === null) return;
+        try { const d = await apiCall(`/admin/ads/${b.dataset.id}/reject`, { method:'PATCH', auth:true, body:{reason} }); showToast(d.message,'success'); loadAdsPanel(); }
+        catch(e){ showToast(e.message,'error'); }
+      }));
+      el.querySelectorAll('.remove-ad').forEach(b => b.addEventListener('click', async () => {
+        if (!confirm('Remove this listing from the site?')) return;
+        try { const d = await apiCall(`/admin/ads/${b.dataset.id}/remove`, { method:'PATCH', auth:true }); showToast(d.message,'success'); loadAdsPanel(); }
+        catch(e){ showToast(e.message,'error'); }
+      }));
+    } catch (e) { el.innerHTML = `<p class="text-muted">${escapeHtml(e.message)}</p>`; }
+  }
+
+  async function loadInquiriesPanel() {
+    const el = document.getElementById('inquiries-list');
+    try {
+      const data = await apiCall('/admin/inquiries', { auth: true });
+      if (!data.inquiries.length) { el.innerHTML = `<p class="text-muted">No inquiries yet.</p>`; return; }
+      el.innerHTML = data.inquiries.map(inq => `
+        <div class="review-row">
+          <div class="flex-between">
+            <strong>${inq.ad ? escapeHtml(inq.ad.title) : 'Listing removed'}</strong>
+            ${statusBadge(inq.status)}
+          </div>
+          <div class="text-sm text-muted mt-8">
+            Buyer: ${escapeHtml(inq.buyer.name)} (${escapeHtml(inq.buyer.email)}, ${escapeHtml(inq.buyer.phone)})<br>
+            Seller: ${escapeHtml(inq.seller.name)} (${escapeHtml(inq.seller.email)}, ${escapeHtml(inq.seller.phone)})
+          </div>
+          <p class="text-sm mt-8"><em>Buyer's message:</em> ${escapeHtml(inq.initialMessage)}</p>
+          <div class="mt-8" style="max-height:200px; overflow-y:auto; background:var(--paper); border-radius:8px; padding:10px;">
+            ${inq.thread.length ? inq.thread.map(m => `
+              <div class="text-sm mb-8">
+                <strong>${m.sender === 'admin' ? 'You &rarr; ' + m.recipient : (m.sender === 'buyer' ? 'Buyer' : 'Seller')}:</strong>
+                ${escapeHtml(m.text)}
+                <span class="text-muted" style="font-size:0.75rem;"> &middot; ${timeAgo(m.createdAt)}</span>
+              </div>
+            `).join('') : '<p class="text-muted text-sm">No relayed messages yet.</p>'}
+          </div>
+          <div class="flex gap-8 mt-16">
+            <input type="text" class="msg-input" placeholder="Message to relay..." style="flex:1;">
+            <select class="msg-to" style="width:120px;">
+              <option value="seller">To seller</option>
+              <option value="buyer">To buyer</option>
+            </select>
+            <button class="btn btn-sm btn-primary send-relay" data-id="${inq._id}">Send</button>
+            ${inq.status !== 'closed' ? `<button class="btn btn-sm btn-ghost close-inq" data-id="${inq._id}">Close</button>` : ''}
+          </div>
+        </div>
+      `).join('');
+
+      el.querySelectorAll('.send-relay').forEach(b => {
+        b.addEventListener('click', async () => {
+          const row = b.closest('.review-row');
+          const text = row.querySelector('.msg-input').value.trim();
+          const to = row.querySelector('.msg-to').value;
+          if (!text) return;
+          try {
+            await apiCall(`/admin/inquiries/${b.dataset.id}/message`, { method:'POST', auth:true, body:{ to, text } });
+            showToast('Message sent.', 'success');
+            loadInquiriesPanel();
+          } catch(e){ showToast(e.message,'error'); }
+        });
+      });
+      el.querySelectorAll('.close-inq').forEach(b => b.addEventListener('click', async () => {
+        try { await apiCall(`/admin/inquiries/${b.dataset.id}/close`, { method:'PATCH', auth:true }); showToast('Closed.','success'); loadInquiriesPanel(); }
+        catch(e){ showToast(e.message,'error'); }
+      }));
+    } catch (e) { el.innerHTML = `<p class="text-muted">${escapeHtml(e.message)}</p>`; }
+  }
+
+  async function loadTestimonialsPanel() {
+    const el = document.getElementById('testimonials-list-admin');
+    const status = document.getElementById('testimonial-status-filter').value;
+    el.innerHTML = '<div class="spinner"></div>';
+    try {
+      const data = await apiCall('/admin/testimonials?status=' + status, { auth: true });
+      if (!data.testimonials.length) { el.innerHTML = `<p class="text-muted">No ${status} testimonials.</p>`; return; }
+      el.innerHTML = data.testimonials.map(t => `
+        <div class="review-row">
+          <div class="flex-between">
+            <div>
+              <strong>${escapeHtml(t.name)}</strong> ${statusBadge(t.status)}
+              <div class="stars">${'★'.repeat(t.rating)}${'☆'.repeat(5-t.rating)}</div>
+              <p class="text-sm mt-8">${escapeHtml(t.message)}</p>
+            </div>
+            ${t.status === 'pending' ? `
+              <div class="flex gap-8">
+                <button class="btn btn-sm btn-primary approve-t" data-id="${t._id}">Approve</button>
+                <button class="btn btn-sm btn-danger reject-t" data-id="${t._id}">Reject</button>
+              </div>
+            ` : ''}
+          </div>
+        </div>
+      `).join('');
+      el.querySelectorAll('.approve-t').forEach(b => b.addEventListener('click', async () => {
+        try { await apiCall(`/admin/testimonials/${b.dataset.id}/approve`, { method:'PATCH', auth:true }); showToast('Approved.','success'); loadTestimonialsPanel(); }
+        catch(e){ showToast(e.message,'error'); }
+      }));
+      el.querySelectorAll('.reject-t').forEach(b => b.addEventListener('click', async () => {
+        try { await apiCall(`/admin/testimonials/${b.dataset.id}/reject`, { method:'PATCH', auth:true }); showToast('Rejected.','success'); loadTestimonialsPanel(); }
+        catch(e){ showToast(e.message,'error'); }
+      }));
+    } catch (e) { el.innerHTML = `<p class="text-muted">${escapeHtml(e.message)}</p>`; }
+  }
+
+  async function loadFeedbackPanel() {
+    const el = document.getElementById('feedback-list-admin');
+    try {
+      const data = await apiCall('/admin/feedback', { auth: true });
+      if (!data.feedback.length) { el.innerHTML = `<p class="text-muted">No feedback yet.</p>`; return; }
+      el.innerHTML = data.feedback.map(f => `
+        <div class="review-row">
+          <div class="flex-between">
+            <div>
+              <strong>${escapeHtml(f.name)}</strong> <span class="badge badge-gray">${escapeHtml(f.type)}</span> ${statusBadge(f.status === 'unread' ? 'pending' : f.status === 'resolved' ? 'approved' : 'pending')}
+              <div class="text-sm text-muted">${escapeHtml(f.email || 'No email provided')} &middot; ${timeAgo(f.createdAt)}</div>
+              <p class="text-sm mt-8">${escapeHtml(f.message)}</p>
+            </div>
+            <select class="fb-status" data-id="${f._id}">
+              <option value="unread" ${f.status==='unread'?'selected':''}>Unread</option>
+              <option value="read" ${f.status==='read'?'selected':''}>Read</option>
+              <option value="resolved" ${f.status==='resolved'?'selected':''}>Resolved</option>
+            </select>
+          </div>
+        </div>
+      `).join('');
+      el.querySelectorAll('.fb-status').forEach(s => s.addEventListener('change', async () => {
+        try { await apiCall(`/admin/feedback/${s.dataset.id}/status`, { method:'PATCH', auth:true, body:{status:s.value} }); showToast('Updated.','success'); }
+        catch(e){ showToast(e.message,'error'); }
+      }));
+    } catch (e) { el.innerHTML = `<p class="text-muted">${escapeHtml(e.message)}</p>`; }
+  }
+
+  async function loadUsersPanel() {
+    const el = document.getElementById('users-list-admin');
+    try {
+      const data = await apiCall('/admin/users', { auth: true });
+      el.innerHTML = data.users.map(u => `
+        <div class="review-row">
+          <div class="flex-between">
+            <div>
+              <strong>${escapeHtml(u.name)}</strong> ${u.isAdmin ? '<span class="badge badge-amber">admin</span>' : ''} ${u.isBlocked ? '<span class="badge badge-red">blocked</span>' : ''}
+              <div class="text-sm text-muted">${escapeHtml(u.email)} &middot; ${escapeHtml(u.phone)} &middot; joined ${timeAgo(u.createdAt)}</div>
+            </div>
+            ${!u.isAdmin ? `<button class="btn btn-sm ${u.isBlocked ? 'btn-ghost' : 'btn-danger'} toggle-block" data-id="${u._id}" data-blocked="${u.isBlocked}">${u.isBlocked ? 'Unblock' : 'Block'}</button>` : ''}
+          </div>
+        </div>
+      `).join('');
+      el.querySelectorAll('.toggle-block').forEach(b => b.addEventListener('click', async () => {
+        const newBlocked = b.dataset.blocked !== 'true';
+        try { await apiCall(`/admin/users/${b.dataset.id}/block`, { method:'PATCH', auth:true, body:{blocked:newBlocked} }); showToast('Updated.','success'); loadUsersPanel(); }
+        catch(e){ showToast(e.message,'error'); }
+      }));
+    } catch (e) { el.innerHTML = `<p class="text-muted">${escapeHtml(e.message)}</p>`; }
+  }
+
+  function loadPanel(name) {
+    if (name === 'dashboard') loadStats();
+    if (name === 'ads') loadAdsPanel();
+    if (name === 'inquiries') loadInquiriesPanel();
+    if (name === 'testimonials') loadTestimonialsPanel();
+    if (name === 'feedback') loadFeedbackPanel();
+    if (name === 'users') loadUsersPanel();
+  }
+
+  document.getElementById('ads-status-filter').addEventListener('change', loadAdsPanel);
+  document.getElementById('testimonial-status-filter').addEventListener('change', loadTestimonialsPanel);
+
+  firebase.auth().onAuthStateChanged(async (user) => {
+    if (!user) {
+      document.getElementById('login-gate').style.display = 'flex';
+      return;
+    }
+    try {
+      const data = await apiCall('/auth/me', { auth: true });
+      if (!data.user.isAdmin) {
+        document.getElementById('gate-msg').textContent = 'This account does not have admin access.';
+        document.getElementById('login-gate').style.display = 'flex';
+        return;
+      }
+      document.getElementById('admin-shell').style.display = 'flex';
+      loadStats();
+    } catch (e) {
+      document.getElementById('gate-msg').textContent = e.message;
+      document.getElementById('login-gate').style.display = 'flex';
+    }
+  });
+</script>
+</body>
+</html>

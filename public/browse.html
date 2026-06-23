@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Browse Cars &amp; Items for Sale Near You | SellKaro</title>
+<meta name="description" content="Browse verified listings of used cars, bikes, mobiles, furniture and more. Every ad is checked before it goes live - find a good deal near you.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600&family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<header class="site-header"><div id="site-header"></div></header>
+
+<section class="page-header">
+  <div class="container">
+    <h1>Browse listings</h1>
+    <p>Every listing here has already been checked by our team.</p>
+  </div>
+</section>
+
+<section style="padding-top:32px;">
+  <div class="container">
+    <div class="card" style="padding:20px; margin-bottom:28px;">
+      <div class="field-row" style="grid-template-columns: 2fr 1fr 1fr 1fr auto;">
+        <div class="field-group" style="margin-bottom:0;">
+          <input type="text" id="f-search" placeholder="Search by title or keyword...">
+        </div>
+        <div class="field-group" style="margin-bottom:0;">
+          <select id="f-category">
+            <option value="">All categories</option>
+            <option>Cars</option><option>Bikes</option><option>Mobiles</option>
+            <option>Electronics</option><option>Furniture</option><option>Property</option>
+            <option>Jobs</option><option>Other</option>
+          </select>
+        </div>
+        <div class="field-group" style="margin-bottom:0;">
+          <input type="number" id="f-min" placeholder="Min price">
+        </div>
+        <div class="field-group" style="margin-bottom:0;">
+          <input type="number" id="f-max" placeholder="Max price">
+        </div>
+        <button class="btn btn-primary" id="apply-filters">Search</button>
+      </div>
+    </div>
+
+    <div id="results-meta" class="text-muted text-sm mb-16"></div>
+    <div id="ads-results" class="ads-grid"><div class="spinner"></div></div>
+    <div id="pagination" class="flex" style="justify-content:center; gap:8px; margin-top:32px;"></div>
+  </div>
+</section>
+
+<footer class="site-footer"><div id="site-footer"></div></footer>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="/js/firebase-config.js"></script>
+<script src="/js/app.js"></script>
+<script>
+  renderHeader('browse');
+
+  function adCardHtml(ad) {
+    const img = ad.images && ad.images[0] ? `<img src="${ad.images[0].url}" alt="${escapeHtml(ad.title)}">` : 'No photo';
+    return `
+      <a href="/ad.html?slug=${ad.slug}" class="card ad-card">
+        <div class="thumb">${img}</div>
+        <div class="body">
+          <div class="price">${formatPrice(ad.price)}</div>
+          <div class="title">${escapeHtml(ad.title)}</div>
+          <div class="meta">
+            <span class="badge badge-gray">${escapeHtml(ad.category)}</span>
+            &nbsp;${escapeHtml(ad.location && ad.location.city || '')} &middot; ${timeAgo(ad.createdAt)}
+          </div>
+        </div>
+      </a>`;
+  }
+
+  let currentPage = 1;
+
+  function paramsFromUrl() {
+    const p = new URLSearchParams(window.location.search);
+    return { q: p.get('q') || '', category: p.get('category') || '', minPrice: p.get('minPrice') || '', maxPrice: p.get('maxPrice') || '' };
+  }
+
+  function fillFormFromParams(params) {
+    document.getElementById('f-search').value = params.q;
+    document.getElementById('f-category').value = params.category;
+    document.getElementById('f-min').value = params.minPrice;
+    document.getElementById('f-max').value = params.maxPrice;
+  }
+
+  async function loadAds(page = 1) {
+    currentPage = page;
+    const q = document.getElementById('f-search').value.trim();
+    const category = document.getElementById('f-category').value;
+    const minPrice = document.getElementById('f-min').value;
+    const maxPrice = document.getElementById('f-max').value;
+
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    if (category) params.set('category', category);
+    if (minPrice) params.set('minPrice', minPrice);
+    if (maxPrice) params.set('maxPrice', maxPrice);
+    params.set('page', page);
+    params.set('limit', 12);
+
+    history.replaceState(null, '', '/browse.html?' + params.toString());
+
+    const resultsEl = document.getElementById('ads-results');
+    resultsEl.innerHTML = '<div class="spinner"></div>';
+
+    try {
+      const data = await apiCall('/ads?' + params.toString());
+      document.getElementById('results-meta').textContent = `${data.total} listing${data.total === 1 ? '' : 's'} found`;
+
+      if (!data.ads.length) {
+        resultsEl.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="icon">🔍</div><p>No listings match your search. Try different keywords or filters.</p></div>`;
+        document.getElementById('pagination').innerHTML = '';
+        return;
+      }
+
+      resultsEl.innerHTML = data.ads.map(adCardHtml).join('');
+
+      const pag = document.getElementById('pagination');
+      if (data.pages > 1) {
+        let html = '';
+        for (let i = 1; i <= data.pages; i++) {
+          html += `<button class="btn btn-sm ${i === data.page ? 'btn-primary' : 'btn-ghost'}" data-page="${i}">${i}</button>`;
+        }
+        pag.innerHTML = html;
+        pag.querySelectorAll('button').forEach(b => b.addEventListener('click', () => loadAds(Number(b.dataset.page))));
+      } else {
+        pag.innerHTML = '';
+      }
+    } catch (e) {
+      resultsEl.innerHTML = `<p class="text-muted" style="grid-column:1/-1;">Could not load listings right now.</p>`;
+    }
+  }
+
+  document.getElementById('apply-filters').addEventListener('click', () => loadAds(1));
+  document.getElementById('f-search').addEventListener('keydown', (e) => { if (e.key === 'Enter') loadAds(1); });
+
+  fillFormFromParams(paramsFromUrl());
+  loadAds(1);
+</script>
+</body>
+</html>

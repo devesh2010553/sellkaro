@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Log In | SellKaro</title>
+<meta name="description" content="Log in to your SellKaro account to manage your ads and messages.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600&family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<header class="site-header"><div id="site-header"></div></header>
+
+<section class="page-header">
+  <div class="container">
+    <h1>Welcome back</h1>
+    <p>Log in to manage your listings and messages.</p>
+  </div>
+</section>
+
+<section>
+  <div class="container" style="max-width:480px;">
+    <form id="login-form" class="card" style="padding:28px;">
+      <div class="field-group">
+        <label class="field-label">Email address</label>
+        <input type="email" id="li-email" required placeholder="you@example.com">
+      </div>
+      <div class="field-group">
+        <label class="field-label">Password</label>
+        <input type="password" id="li-password" required placeholder="Your password">
+      </div>
+      <button type="submit" class="btn btn-primary btn-block" id="login-btn">Log in</button>
+      <p class="text-sm text-center mt-16">
+        <a href="#" id="forgot-link" style="color:var(--amber-600); font-weight:600;">Forgot password?</a>
+      </p>
+      <p class="text-sm text-center">New here? <a href="/signup.html" style="color:var(--amber-600); font-weight:600;">Create an account</a></p>
+    </form>
+  </div>
+</section>
+
+<footer class="site-footer"><div id="site-footer"></div></footer>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="/js/firebase-config.js"></script>
+<script src="/js/app.js"></script>
+<script>
+  renderHeader('');
+
+  document.getElementById('login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('login-btn');
+    const email = document.getElementById('li-email').value.trim();
+    const password = document.getElementById('li-password').value;
+
+    btn.disabled = true;
+    btn.textContent = 'Logging in...';
+
+    try {
+      const cred = await firebase.auth().signInWithEmailAndPassword(email, password);
+      if (!cred.user.emailVerified) {
+        showToast('Please verify your email before continuing.', 'error');
+        setTimeout(() => window.location.href = '/verify-email.html', 1000);
+        return;
+      }
+      showToast('Logged in!', 'success');
+      const redirectTo = new URLSearchParams(window.location.search).get('redirect') || '/dashboard.html';
+      setTimeout(() => window.location.href = redirectTo, 800);
+    } catch (err) {
+      console.error(err);
+      let msg = 'Could not log in. Please check your email and password.';
+      if (err.message && err.message.includes('too-many-requests')) msg = 'Too many attempts. Please wait a moment and try again.';
+      showToast(msg, 'error');
+      btn.disabled = false;
+      btn.textContent = 'Log in';
+    }
+  });
+
+  document.getElementById('forgot-link').addEventListener('click', async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('li-email').value.trim();
+    if (!email) {
+      showToast('Enter your email above first, then click "Forgot password?"', 'error');
+      return;
+    }
+    try {
+      await firebase.auth().sendPasswordResetEmail(email);
+      showToast('Password reset email sent.', 'success');
+    } catch (err) {
+      showToast('Could not send reset email. Please check the address and try again.', 'error');
+    }
+  });
+</script>
+</body>
+</html>
